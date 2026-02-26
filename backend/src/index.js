@@ -1,10 +1,7 @@
 /**
  * Cloudflare Worker for Task Manager API
- * Adapts the Express backend to run on Cloudflare Workers with D1 database
+ * Uses Web Crypto API for JWT and password hashing
  */
-
-import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
 
 // CORS headers
 const corsHeaders = {
@@ -32,20 +29,89 @@ function jsonResponse(data, status = 200) {
   });
 }
 
+// Password hashing using Web Crypto API
+async function hashPassword(password) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(password);
+  const hash = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(hash))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+async function verifyPassword(password, hash) {
+  const newHash = await hashPassword(password);
+  return newHash === hash;
+}
+
+// Simple JWT implementation using Web Crypto API
+async function createJWT(payload, secret, expiresIn = 7 * 24 * 60 * 60) {
+  const header = { alg: 'HS256', typ: 'JWT' };
+  const now = Math.floor(Date.now() / 1000);
+  const jwtPayload = { ...payload, iat: now, exp: now + expiresIn };
+
+  const encodedHeader = btoa(JSON.stringify(header)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+  const encodedPayload = btoa(JSON.stringify(jwtPayload)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+
+  const encoder = new TextEncoder();
+  const data = encoder.encode(`${encodedHeader}.${encodedPayload}`);
+  const secretKey = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+
+  const signature = await crypto.subtle.sign('HMAC', secretKey, data);
+  const encodedSignature = btoa(String.fromCharCode(...new Uint8Array(signature)))
+    .replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+
+  return `${encodedHeader}.${encodedPayload}.${encodedSignature}`;
+}
+
+async function verifyJWT(token, secret) {
+  try {
+    const [encodedHeader, encodedPayload, encodedSignature] = token.split('.');
+    
+    const encoder = new TextEncoder();
+    const data = encoder.encode(`${encodedHeader}.${encodedPayload}`);
+    const secretKey = await crypto.subtle.importKey(
+      'raw',
+      encoder.encode(secret),
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['verify']
+    );
+
+    const signature = Uint8Array.from(atob(encodedSignature.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
+    
+    const valid = await crypto.subtle.verify('HMAC', secretKey, signature, data);
+    if (!valid) return null;
+
+    const payload = JSON.parse(atob(encodedPayload.replace(/-/g, '+').replace(/_/g, '/')));
+    
+    // Check expiration
+    if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) {
+      return null;
+    }
+
+    return payload;
+  } catch (error) {
+    return null;
+  }
+}
+
 // Auth middleware
-function verifyToken(request, env) {
+async function verifyToken(request, env) {
   const authHeader = request.headers.get('Authorization');
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return null;
   }
 
   const token = authHeader.substring(7);
-  try {
-    const decoded = jwt.verify(token, env.JWT_SECRET);
-    return decoded.userId;
-  } catch (error) {
-    return null;
-  }
+  const payload = await verifyJWT(token, env.JWT_SECRET);
+  return payload ? payload.userId : null;
 }
 
 // Initialize database
@@ -102,7 +168,7 @@ async function handleRegister(request, env) {
     }
 
     // Hash password
-    const passwordHash = await bcrypt.hash(password, 10);
+    const passwordHash = await hashPassword(password);
 
     // Insert user
     const result = await env.DB.prepare(
@@ -112,7 +178,7 @@ async function handleRegister(request, env) {
     const userId = result.meta.last_row_id;
 
     // Generate token
-    const token = jwt.sign({ userId }, env.JWT_SECRET, { expiresIn: '7d' });
+    const token = await createJWT({ userId }, env.JWT_SECRET);
 
     return jsonResponse({
       token,
@@ -140,12 +206,12 @@ async function handleLogin(request, env) {
       return jsonResponse({ error: 'Invalid credentials' }, 401);
     }
 
-    const validPassword = await bcrypt.compare(password, user.password_hash);
+    const validPassword = await verifyPassword(password, user.password_hash);
     if (!validPassword) {
       return jsonResponse({ error: 'Invalid credentials' }, 401);
     }
 
-    const token = jwt.sign({ userId: user.id }, env.JWT_SECRET, { expiresIn: '7d' });
+    const token = await createJWT({ userId: user.id }, env.JWT_SECRET);
 
     return jsonResponse({
       token,
@@ -158,7 +224,7 @@ async function handleLogin(request, env) {
 }
 
 async function handleGetMe(request, env) {
-  const userId = verifyToken(request, env);
+  const userId = await verifyToken(request, env);
   if (!userId) {
     return jsonResponse({ error: 'Unauthorized' }, 401);
   }
@@ -180,7 +246,7 @@ async function handleGetMe(request, env) {
 }
 
 async function handleGetTasks(request, env) {
-  const userId = verifyToken(request, env);
+  const userId = await verifyToken(request, env);
   if (!userId) {
     return jsonResponse({ error: 'Unauthorized' }, 401);
   }
@@ -212,7 +278,7 @@ async function handleGetTasks(request, env) {
 }
 
 async function handleCreateTask(request, env) {
-  const userId = verifyToken(request, env);
+  const userId = await verifyToken(request, env);
   if (!userId) {
     return jsonResponse({ error: 'Unauthorized' }, 401);
   }
@@ -247,7 +313,7 @@ async function handleCreateTask(request, env) {
 }
 
 async function handleUpdateTask(request, env, taskId) {
-  const userId = verifyToken(request, env);
+  const userId = await verifyToken(request, env);
   if (!userId) {
     return jsonResponse({ error: 'Unauthorized' }, 401);
   }
@@ -309,7 +375,7 @@ async function handleUpdateTask(request, env, taskId) {
 }
 
 async function handleDeleteTask(request, env, taskId) {
-  const userId = verifyToken(request, env);
+  const userId = await verifyToken(request, env);
   if (!userId) {
     return jsonResponse({ error: 'Unauthorized' }, 401);
   }
