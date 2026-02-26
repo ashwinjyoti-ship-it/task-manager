@@ -1,0 +1,130 @@
+{
+  "tables": [
+    {
+      "name": "users",
+      "description": "User accounts for authentication",
+      "columns": [
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "constraints": ["PRIMARY KEY", "AUTOINCREMENT"],
+          "description": "Unique user identifier"
+        },
+        {
+          "name": "email",
+          "type": "TEXT",
+          "constraints": ["NOT NULL", "UNIQUE"],
+          "description": "User email address (unique login identifier)"
+        },
+        {
+          "name": "password_hash",
+          "type": "TEXT",
+          "constraints": ["NOT NULL"],
+          "description": "Bcrypt hashed password"
+        },
+        {
+          "name": "name",
+          "type": "TEXT",
+          "constraints": ["NOT NULL"],
+          "description": "User's display name"
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "constraints": ["NOT NULL", "DEFAULT CURRENT_TIMESTAMP"],
+          "description": "Account creation timestamp"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_users_email",
+          "columns": ["email"],
+          "unique": true
+        }
+      ]
+    },
+    {
+      "name": "tasks",
+      "description": "User tasks with status tracking",
+      "columns": [
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "constraints": ["PRIMARY KEY", "AUTOINCREMENT"],
+          "description": "Unique task identifier"
+        },
+        {
+          "name": "user_id",
+          "type": "INTEGER",
+          "constraints": ["NOT NULL"],
+          "description": "Foreign key to users table",
+          "references": {
+            "table": "users",
+            "column": "id",
+            "on_delete": "CASCADE"
+          }
+        },
+        {
+          "name": "title",
+          "type": "TEXT",
+          "constraints": ["NOT NULL"],
+          "description": "Task title/summary"
+        },
+        {
+          "name": "description",
+          "type": "TEXT",
+          "constraints": [],
+          "description": "Optional detailed task description"
+        },
+        {
+          "name": "completed",
+          "type": "INTEGER",
+          "constraints": ["NOT NULL", "DEFAULT 0"],
+          "description": "Task completion status (0=incomplete, 1=complete)"
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "constraints": ["NOT NULL", "DEFAULT CURRENT_TIMESTAMP"],
+          "description": "Task creation timestamp"
+        },
+        {
+          "name": "updated_at",
+          "type": "TEXT",
+          "constraints": ["NOT NULL", "DEFAULT CURRENT_TIMESTAMP"],
+          "description": "Last update timestamp"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_tasks_user_id",
+          "columns": ["user_id"],
+          "unique": false
+        },
+        {
+          "name": "idx_tasks_completed",
+          "columns": ["completed"],
+          "unique": false
+        }
+      ],
+      "foreign_keys": [
+        {
+          "columns": ["user_id"],
+          "references": {
+            "table": "users",
+            "columns": ["id"]
+          },
+          "on_delete": "CASCADE"
+        }
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "type": "one-to-many",
+      "from": "users",
+      "to": "tasks",
+      "description": "Each user can have multiple tasks"
+    }
+  ]
+}

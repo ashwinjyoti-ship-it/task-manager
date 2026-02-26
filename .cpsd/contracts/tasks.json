@@ -1,0 +1,208 @@
+{
+  "domain": "tasks",
+  "base_path": "/api/tasks",
+  "description": "Task management endpoints (all require authentication)",
+  "authentication": "Bearer token required for all endpoints",
+  "endpoints": [
+    {
+      "method": "GET",
+      "path": "/",
+      "description": "Get all tasks for authenticated user",
+      "request": {
+        "headers": {
+          "Authorization": "Bearer <token>"
+        },
+        "query": {
+          "completed": {
+            "type": "string",
+            "enum": ["true", "false"],
+            "required": false,
+            "description": "Filter by completion status"
+          }
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "Tasks retrieved successfully",
+          "body": {
+            "tasks": [
+              {
+                "id": "number",
+                "title": "string",
+                "description": "string",
+                "completed": "boolean",
+                "created_at": "string (ISO timestamp)",
+                "updated_at": "string (ISO timestamp)"
+              }
+            ]
+          }
+        },
+        "401": {
+          "description": "Unauthorized",
+          "body": {
+            "error": "string"
+          }
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/",
+      "description": "Create a new task",
+      "request": {
+        "headers": {
+          "Authorization": "Bearer <token>"
+        },
+        "body": {
+          "type": "application/json",
+          "schema": {
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "required": true,
+              "description": "Task title"
+            },
+            "description": {
+              "type": "string",
+              "required": false,
+              "description": "Task description (optional)"
+            }
+          }
+        }
+      },
+      "responses": {
+        "201": {
+          "description": "Task created successfully",
+          "body": {
+            "task": {
+              "id": "number",
+              "title": "string",
+              "description": "string",
+              "completed": "boolean",
+              "created_at": "string (ISO timestamp)",
+              "updated_at": "string (ISO timestamp)"
+            }
+          }
+        },
+        "400": {
+          "description": "Validation error",
+          "body": {
+            "error": "string"
+          }
+        },
+        "401": {
+          "description": "Unauthorized",
+          "body": {
+            "error": "string"
+          }
+        }
+      }
+    },
+    {
+      "method": "PUT",
+      "path": "/:id",
+      "description": "Update an existing task",
+      "request": {
+        "headers": {
+          "Authorization": "Bearer <token>"
+        },
+        "params": {
+          "id": {
+            "type": "number",
+            "description": "Task ID"
+          }
+        },
+        "body": {
+          "type": "application/json",
+          "schema": {
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "required": false,
+              "description": "Task title"
+            },
+            "description": {
+              "type": "string",
+              "required": false,
+              "description": "Task description"
+            },
+            "completed": {
+              "type": "boolean",
+              "required": false,
+              "description": "Task completion status"
+            }
+          }
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "Task updated successfully",
+          "body": {
+            "task": {
+              "id": "number",
+              "title": "string",
+              "description": "string",
+              "completed": "boolean",
+              "created_at": "string (ISO timestamp)",
+              "updated_at": "string (ISO timestamp)"
+            }
+          }
+        },
+        "404": {
+          "description": "Task not found or doesn't belong to user",
+          "body": {
+            "error": "string"
+          }
+        },
+        "400": {
+          "description": "Validation error",
+          "body": {
+            "error": "string"
+          }
+        },
+        "401": {
+          "description": "Unauthorized",
+          "body": {
+            "error": "string"
+          }
+        }
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/:id",
+      "description": "Delete a task",
+      "request": {
+        "headers": {
+          "Authorization": "Bearer <token>"
+        },
+        "params": {
+          "id": {
+            "type": "number",
+            "description": "Task ID"
+          }
+        }
+      },
+      "responses": {
+        "200": {
+          "description": "Task deleted successfully",
+          "body": {
+            "message": "string"
+          }
+        },
+        "404": {
+          "description": "Task not found or doesn't belong to user",
+          "body": {
+            "error": "string"
+          }
+        },
+        "401": {
+          "description": "Unauthorized",
+          "body": {
+            "error": "string"
+          }
+        }
+      }
+    }
+  ]
+}

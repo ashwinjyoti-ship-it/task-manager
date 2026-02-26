@@ -1,0 +1,94 @@
+{
+  "meta": {
+    "project_name": "task-manager",
+    "version": "0.1.0",
+    "sync_status": "pending",
+    "created": "2026-02-26",
+    "description": "Task management application with user authentication"
+  },
+  "architecture": {
+    "tech_stack": {
+      "frontend": {
+        "framework": "React 18",
+        "bundler": "Vite",
+        "styling": "TailwindCSS",
+        "routing": "React Router v6",
+        "state": "React Context API",
+        "http": "Axios"
+      },
+      "backend": {
+        "runtime": "Node.js 18+",
+        "framework": "Express.js",
+        "auth": "JWT (jsonwebtoken + bcryptjs)",
+        "validation": "express-validator",
+        "cors": "cors middleware"
+      },
+      "database": {
+        "type": "SQLite",
+        "orm": "better-sqlite3",
+        "migrations": "manual SQL scripts"
+      },
+      "deployment": {
+        "frontend": "Cloudflare Pages",
+        "backend": "Cloudflare Workers",
+        "database": "D1 (Cloudflare's SQLite)"
+      }
+    },
+    "features": [
+      {
+        "id": "auth",
+        "name": "User Authentication",
+        "description": "Register, login, JWT sessions",
+        "priority": "critical"
+      },
+      {
+        "id": "tasks",
+        "name": "Task Management",
+        "description": "CRUD operations for tasks",
+        "priority": "critical"
+      },
+      {
+        "id": "user-isolation",
+        "name": "User Data Isolation",
+        "description": "Each user sees only their tasks",
+        "priority": "critical"
+      },
+      {
+        "id": "task-status",
+        "name": "Task Status Management",
+        "description": "Mark tasks as complete/incomplete",
+        "priority": "high"
+      }
+    ]
+  },
+  "api_contracts": {
+    "base_url": "/api",
+    "endpoints": []
+  },
+  "database_schema": {
+    "tables": []
+  },
+  "status": {
+    "phase": "planning",
+    "agents": {
+      "manager": {
+        "status": "active",
+        "current_task": "Architecture definition"
+      },
+      "database": {
+        "status": "pending",
+        "current_task": null
+      },
+      "backend": {
+        "status": "pending",
+        "current_task": null
+      },
+      "frontend": {
+        "status": "pending",
+        "current_task": null
+      }
+    },
+    "freeze_ready": false,
+    "blockers": []
+  }
+}
