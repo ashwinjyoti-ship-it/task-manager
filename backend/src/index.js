@@ -114,53 +114,50 @@ async function verifyToken(request, env) {
   return payload ? payload.userId : null;
 }
 
-// Initialize database
+// Initialize database - D1 batch API
 async function initDatabase(env) {
-  await env.DB.exec(`
-    CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      email TEXT NOT NULL UNIQUE,
-      password_hash TEXT NOT NULL,
-      name TEXT NOT NULL,
-      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-
-  await env.DB.exec(`
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email)
-  `);
-
-  await env.DB.exec(`
-    CREATE TABLE IF NOT EXISTS tasks (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL,
-      title TEXT NOT NULL,
-      description TEXT,
-      completed INTEGER NOT NULL DEFAULT 0,
-      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    )
-  `);
-
-  await env.DB.exec(`
-    CREATE INDEX IF NOT EXISTS idx_tasks_user_id ON tasks(user_id)
-  `);
-
-  await env.DB.exec(`
-    CREATE INDEX IF NOT EXISTS idx_tasks_completed ON tasks(completed)
-  `);
+  try {
+    await env.DB.batch([
+      env.DB.prepare(`
+        CREATE TABLE IF NOT EXISTS users (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          email TEXT NOT NULL UNIQUE,
+          password_hash TEXT NOT NULL,
+          name TEXT NOT NULL,
+          created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+      `),
+      env.DB.prepare(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email)`),
+      env.DB.prepare(`
+        CREATE TABLE IF NOT EXISTS tasks (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          user_id INTEGER NOT NULL,
+          title TEXT NOT NULL,
+          description TEXT,
+          completed INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+      `),
+      env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_tasks_user_id ON tasks(user_id)`),
+      env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_tasks_completed ON tasks(completed)`)
+    ]);
+  } catch (error) {
+    // Tables might already exist, ignore errors
+    console.log('Database initialization:', error.message);
+  }
 }
 
 // Route handlers
 async function handleRegister(request, env) {
-  const { email, password, name } = await request.json();
-
-  if (!email || !password || !name || password.length < 6) {
-    return jsonResponse({ error: 'Validation failed' }, 400);
-  }
-
   try {
+    const { email, password, name } = await request.json();
+
+    if (!email || !password || !name || password.length < 6) {
+      return jsonResponse({ error: 'Validation failed' }, 400);
+    }
+
     // Check if user exists
     const existing = await env.DB.prepare('SELECT id FROM users WHERE email = ?').bind(email).first();
     if (existing) {
@@ -186,18 +183,18 @@ async function handleRegister(request, env) {
     }, 201);
   } catch (error) {
     console.error('Register error:', error);
-    return jsonResponse({ error: 'Internal server error' }, 500);
+    return jsonResponse({ error: 'Internal server error: ' + error.message }, 500);
   }
 }
 
 async function handleLogin(request, env) {
-  const { email, password } = await request.json();
-
-  if (!email || !password) {
-    return jsonResponse({ error: 'Validation failed' }, 400);
-  }
-
   try {
+    const { email, password } = await request.json();
+
+    if (!email || !password) {
+      return jsonResponse({ error: 'Validation failed' }, 400);
+    }
+
     const user = await env.DB.prepare(
       'SELECT id, email, name, password_hash FROM users WHERE email = ?'
     ).bind(email).first();
@@ -219,17 +216,17 @@ async function handleLogin(request, env) {
     });
   } catch (error) {
     console.error('Login error:', error);
-    return jsonResponse({ error: 'Internal server error' }, 500);
+    return jsonResponse({ error: 'Internal server error: ' + error.message }, 500);
   }
 }
 
 async function handleGetMe(request, env) {
-  const userId = await verifyToken(request, env);
-  if (!userId) {
-    return jsonResponse({ error: 'Unauthorized' }, 401);
-  }
-
   try {
+    const userId = await verifyToken(request, env);
+    if (!userId) {
+      return jsonResponse({ error: 'Unauthorized' }, 401);
+    }
+
     const user = await env.DB.prepare(
       'SELECT id, email, name, created_at FROM users WHERE id = ?'
     ).bind(userId).first();
@@ -241,17 +238,17 @@ async function handleGetMe(request, env) {
     return jsonResponse(user);
   } catch (error) {
     console.error('Get user error:', error);
-    return jsonResponse({ error: 'Internal server error' }, 500);
+    return jsonResponse({ error: 'Internal server error: ' + error.message }, 500);
   }
 }
 
 async function handleGetTasks(request, env) {
-  const userId = await verifyToken(request, env);
-  if (!userId) {
-    return jsonResponse({ error: 'Unauthorized' }, 401);
-  }
-
   try {
+    const userId = await verifyToken(request, env);
+    if (!userId) {
+      return jsonResponse({ error: 'Unauthorized' }, 401);
+    }
+
     const url = new URL(request.url);
     const completed = url.searchParams.get('completed');
 
@@ -273,17 +270,17 @@ async function handleGetTasks(request, env) {
     return jsonResponse({ tasks });
   } catch (error) {
     console.error('Get tasks error:', error);
-    return jsonResponse({ error: 'Internal server error' }, 500);
+    return jsonResponse({ error: 'Internal server error: ' + error.message }, 500);
   }
 }
 
 async function handleCreateTask(request, env) {
-  const userId = await verifyToken(request, env);
-  if (!userId) {
-    return jsonResponse({ error: 'Unauthorized' }, 401);
-  }
-
   try {
+    const userId = await verifyToken(request, env);
+    if (!userId) {
+      return jsonResponse({ error: 'Unauthorized' }, 401);
+    }
+
     const { title, description = '' } = await request.json();
 
     if (!title || title.trim().length === 0) {
@@ -308,17 +305,17 @@ async function handleCreateTask(request, env) {
     }, 201);
   } catch (error) {
     console.error('Create task error:', error);
-    return jsonResponse({ error: 'Internal server error' }, 500);
+    return jsonResponse({ error: 'Internal server error: ' + error.message }, 500);
   }
 }
 
 async function handleUpdateTask(request, env, taskId) {
-  const userId = await verifyToken(request, env);
-  if (!userId) {
-    return jsonResponse({ error: 'Unauthorized' }, 401);
-  }
-
   try {
+    const userId = await verifyToken(request, env);
+    if (!userId) {
+      return jsonResponse({ error: 'Unauthorized' }, 401);
+    }
+
     const { title, description, completed } = await request.json();
 
     const existing = await env.DB.prepare(
@@ -370,17 +367,17 @@ async function handleUpdateTask(request, env, taskId) {
     });
   } catch (error) {
     console.error('Update task error:', error);
-    return jsonResponse({ error: 'Internal server error' }, 500);
+    return jsonResponse({ error: 'Internal server error: ' + error.message }, 500);
   }
 }
 
 async function handleDeleteTask(request, env, taskId) {
-  const userId = await verifyToken(request, env);
-  if (!userId) {
-    return jsonResponse({ error: 'Unauthorized' }, 401);
-  }
-
   try {
+    const userId = await verifyToken(request, env);
+    if (!userId) {
+      return jsonResponse({ error: 'Unauthorized' }, 401);
+    }
+
     const result = await env.DB.prepare(
       'DELETE FROM tasks WHERE id = ? AND user_id = ?'
     ).bind(taskId, userId).run();
@@ -392,59 +389,64 @@ async function handleDeleteTask(request, env, taskId) {
     return jsonResponse({ message: 'Task deleted successfully' });
   } catch (error) {
     console.error('Delete task error:', error);
-    return jsonResponse({ error: 'Internal server error' }, 500);
+    return jsonResponse({ error: 'Internal server error: ' + error.message }, 500);
   }
 }
 
 // Main request handler
 export default {
   async fetch(request, env, ctx) {
-    // Handle OPTIONS for CORS
-    if (request.method === 'OPTIONS') {
-      return handleOptions();
+    try {
+      // Handle OPTIONS for CORS
+      if (request.method === 'OPTIONS') {
+        return handleOptions();
+      }
+
+      // Initialize database on first request
+      ctx.waitUntil(initDatabase(env));
+
+      const url = new URL(request.url);
+      const path = url.pathname;
+
+      // Route matching
+      if (path === '/api/auth/register' && request.method === 'POST') {
+        return await handleRegister(request, env);
+      }
+
+      if (path === '/api/auth/login' && request.method === 'POST') {
+        return await handleLogin(request, env);
+      }
+
+      if (path === '/api/auth/me' && request.method === 'GET') {
+        return await handleGetMe(request, env);
+      }
+
+      if (path === '/api/tasks' && request.method === 'GET') {
+        return await handleGetTasks(request, env);
+      }
+
+      if (path === '/api/tasks' && request.method === 'POST') {
+        return await handleCreateTask(request, env);
+      }
+
+      if (path.startsWith('/api/tasks/') && request.method === 'PUT') {
+        const taskId = parseInt(path.split('/')[3]);
+        return await handleUpdateTask(request, env, taskId);
+      }
+
+      if (path.startsWith('/api/tasks/') && request.method === 'DELETE') {
+        const taskId = parseInt(path.split('/')[3]);
+        return await handleDeleteTask(request, env, taskId);
+      }
+
+      if (path === '/api/health' && request.method === 'GET') {
+        return jsonResponse({ status: 'ok', timestamp: new Date().toISOString() });
+      }
+
+      return jsonResponse({ error: 'Route not found' }, 404);
+    } catch (error) {
+      console.error('Worker error:', error);
+      return jsonResponse({ error: 'Worker error: ' + error.message }, 500);
     }
-
-    // Initialize database on first request
-    await initDatabase(env);
-
-    const url = new URL(request.url);
-    const path = url.pathname;
-
-    // Route matching
-    if (path === '/api/auth/register' && request.method === 'POST') {
-      return handleRegister(request, env);
-    }
-
-    if (path === '/api/auth/login' && request.method === 'POST') {
-      return handleLogin(request, env);
-    }
-
-    if (path === '/api/auth/me' && request.method === 'GET') {
-      return handleGetMe(request, env);
-    }
-
-    if (path === '/api/tasks' && request.method === 'GET') {
-      return handleGetTasks(request, env);
-    }
-
-    if (path === '/api/tasks' && request.method === 'POST') {
-      return handleCreateTask(request, env);
-    }
-
-    if (path.startsWith('/api/tasks/') && request.method === 'PUT') {
-      const taskId = parseInt(path.split('/')[3]);
-      return handleUpdateTask(request, env, taskId);
-    }
-
-    if (path.startsWith('/api/tasks/') && request.method === 'DELETE') {
-      const taskId = parseInt(path.split('/')[3]);
-      return handleDeleteTask(request, env, taskId);
-    }
-
-    if (path === '/api/health' && request.method === 'GET') {
-      return jsonResponse({ status: 'ok', timestamp: new Date().toISOString() });
-    }
-
-    return jsonResponse({ error: 'Route not found' }, 404);
   },
 };
